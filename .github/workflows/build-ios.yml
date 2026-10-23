@@ -38,9 +38,39 @@ jobs:
       - name: Verify deployment target
         run: |
           set -euo pipefail
-          MINOS=$(/usr/libexec/PlistBuddy -c "Print :MinimumOSVersion" build/Payload/YouTubeWrapper.app/Info.plist)
+          APP=build/App.xcarchive/Products/Applications/YouTubeWrapper.app
+          MINOS=$(/usr/libexec/PlistBuddy -c "Print :MinimumOSVersion" "$APP/Info.plist")
           echo "MinimumOSVersion: $MINOS"
           test "$MINOS" = "12.0"
+          # The deb ships the same bundle; confirm the executable bit survived packaging.
+          node -e '
+            const zlib = require("zlib"), fs = require("fs");
+            const b = fs.readFileSync("build/YouTubeWrapper.deb");
+            let off = 8, members = [];
+            while (off + 60 <= b.length) {
+              const n = b.slice(off, off + 16).toString().trim();
+              const s = parseInt(b.slice(off + 48, off + 58).toString().trim(), 10);
+              members.push({ n, s, st: off + 60 });
+              off += 60 + s + (s % 2);
+            }
+            const d = members.find((m) => m.n === "data.tar.gz");
+            if (!d) throw new Error("no data.tar.gz in deb");
+            const raw = zlib.gunzipSync(b.slice(d.st, d.st + d.s));
+            let p = 0, found = false;
+            while (p + 512 <= raw.length) {
+              const name = raw.slice(p, p + 100).toString().replace(/\0.*$/, "").trim();
+              if (!name) break;
+              const size = parseInt(raw.slice(p + 124, p + 136).toString().replace(/\0/g, "").trim(), 8) || 0;
+              const mode = raw.slice(p + 100, p + 108).toString().replace(/\0/g, "").trim();
+              if (name.endsWith("YouTubeWrapper.app/YouTubeWrapper")) {
+                if (mode !== "0000755") throw new Error("main binary is not executable: " + mode);
+                found = true;
+              }
+              p += 512 + Math.ceil(size / 512) * 512;
+            }
+            if (!found) throw new Error("main binary missing from deb payload");
+            console.log("deb payload OK: executable present with mode 0755");
+          '
 
       - uses: actions/upload-artifact@v4
         with:
