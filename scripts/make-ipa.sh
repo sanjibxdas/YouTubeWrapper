@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds an unsigned .ipa. Signing happens later on the device host.
+# Builds an unsigned .ipa and a jailbreak-installable .deb from the same app.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -36,9 +36,25 @@ fi
 # builds with only a warning, so this is the check that actually matters.
 MINOS=$(/usr/libexec/PlistBuddy -c "Print :MinimumOSVersion" "$APP/Info.plist")
 echo "MinimumOSVersion = $MINOS"
+test "$MINOS" = "12.0"
 
+# --- unsigned .ipa, for Sideloadly/AltStore ---
 mkdir -p "$BUILD/Payload"
 cp -R "$APP" "$BUILD/Payload/"
 (cd "$BUILD" && zip -qry "$NAME.ipa" Payload)
 
-ls -lh "$BUILD/$NAME.ipa"
+# --- .deb, for Sileo/Cydia/Filza on a jailbroken device ---
+# AppSync Unified only relaxes signature checks at install time; the binary still
+# has to carry a signature for iOS 13+ to launch it. iOS 12 does not enforce
+# this, so the deb is built only when ldid happens to be available.
+if command -v ldid >/dev/null 2>&1; then
+  echo "ldid found: fakesigning binary"
+  ldid -S "$APP/$NAME"
+else
+  echo "ldid not found: leaving binary unsigned (fine for iOS 12)"
+fi
+
+node "$ROOT/tools/make-deb.js" "$APP" "$BUILD/$NAME.deb"
+rm -rf "$BUILD/Payload"
+
+ls -lh "$BUILD/$NAME.ipa" "$BUILD/$NAME.deb"

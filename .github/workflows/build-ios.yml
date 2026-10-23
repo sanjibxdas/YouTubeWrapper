@@ -47,3 +47,9 @@ jobs:
           name: YouTubeWrapper-ipa
           path: build/YouTubeWrapper.ipa
           retention-days: 90
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YouTubeWrapper-deb
+          path: build/YouTubeWrapper.deb
+          retention-days: 90
