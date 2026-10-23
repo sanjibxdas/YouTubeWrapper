@@ -32,6 +32,16 @@ jobs:
           fi
           xcodebuild -version
 
+      - name: Install ldid
+        run: |
+          set -euo pipefail
+          if command -v ldid >/dev/null 2>&1; then
+            ldid -v || true
+          else
+            brew install ldid
+          fi
+          command -v ldid
+
       - name: Build
         run: ./scripts/make-ipa.sh
 

@@ -44,15 +44,15 @@ cp -R "$APP" "$BUILD/Payload/"
 (cd "$BUILD" && zip -qry "$NAME.ipa" Payload)
 
 # --- .deb, for Sileo/Cydia/Filza on a jailbroken device ---
-# AppSync Unified only relaxes signature checks at install time; the binary still
-# has to carry a signature for iOS 13+ to launch it. iOS 12 does not enforce
-# this, so the deb is built only when ldid happens to be available.
-if command -v ldid >/dev/null 2>&1; then
-  echo "ldid found: fakesigning binary"
-  ldid -S "$APP/$NAME"
-else
-  echo "ldid not found: leaving binary unsigned (fine for iOS 12)"
+# arm64 iOS refuses to launch a binary that carries no code signature at all,
+# and AppSync only relaxes the signature *check* — it does not add one. ldid
+# writes an ad-hoc signature, which is what the kernel requires. This must not
+# be optional: without it the app installs and then dies on launch.
+if ! command -v ldid >/dev/null 2>&1; then
+  echo "error: ldid not found; the .deb would contain an unlaunchable binary" >&2
+  exit 1
 fi
+ldid -S "$APP/$NAME"
 
 node "$ROOT/tools/make-deb.js" "$APP" "$BUILD/$NAME.deb"
 rm -rf "$BUILD/Payload"
