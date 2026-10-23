@@ -1,0 +1,44 @@
+[
+  {
+    "trigger": {
+      "url-filter": ".*",
+      "url-filter-is-case-sensitive": false,
+      "if-domain": ["*doubleclick.net", "*googlesyndication.com",
+                    "*googleadservices.com", "*google-analytics.com",
+                    "*googletagservices.com", "*googletagmanager.com",
+                    "*2mdn.net", "*scorecardresearch.com"]
+    },
+    "action": { "type": "block" }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*/pagead/"
+    },
+    "action": { "type": "block" }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*/api/stats/(ads|qoe)"
+    },
+    "action": { "type": "block" }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*/ptracking"
+    },
+    "action": { "type": "block" }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*/get_midroll_info"
+    },
+    "action": { "type": "block" }
+  },
+  {
+    "trigger": {
+      "url-filter": ".*/adunit",
+      "if-domain": ["*googlesyndication.com", "*doubleclick.net", "*google.com"]
+    },
+    "action": { "type": "block" }
+  }
+]

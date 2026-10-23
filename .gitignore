@@ -1,0 +1,16 @@
+# Xcode
+build/
+DerivedData/
+*.xcarchive
+*.ipa
+xcuserdata/
+*.xcuserstate
+
+# macOS
+.DS_Store
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Node
+node_modules/

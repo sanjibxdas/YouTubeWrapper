@@ -1,0 +1,6 @@
+# The repo is edited on Windows but built on macOS, where a CRLF shebang
+# makes scripts/make-ipa.sh fail with "bad interpreter".
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
