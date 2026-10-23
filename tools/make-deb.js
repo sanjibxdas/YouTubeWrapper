@@ -60,7 +60,7 @@ function walk(root, prefix, out) {
   for (const entry of entries) {
     const rel = prefix ? prefix + '/' + entry.name : entry.name;
     if (entry.isDirectory()) {
-      out.push({ name: rel + '/', size: 0, mode: 0o755, isDir: true });
+      out.push({ name: './' + rel + '/', size: 0, mode: 0o755, isDir: true });
       walk(root, rel, out);
     } else {
       const full = path.join(root, rel);
@@ -69,7 +69,7 @@ function walk(root, prefix, out) {
       // and archive round-trips (zip artifacts) routinely drop it.
       const isMainBinary = path.basename(full) === APP_NAME;
       const mode = isMainBinary || (fs.statSync(full).mode & 0o111) ? 0o755 : 0o644;
-      out.push({ name: rel, size: data.length, mode, isDir: false, data });
+      out.push({ name: './' + rel, size: data.length, mode, isDir: false, data });
     }
   }
 }
@@ -108,12 +108,29 @@ function buildAr(members) {
 
 const entries = [];
 walk(APP_PATH, '', entries);
-// Entries are relative to the bundle root; prefix them with where the bundle lands.
-const prefixed = entries.map((e) => Object.assign({}, e, { name: INSTALL_PATH + '/' + e.name }));
+// Entries carry a ./ prefix; put the bundle under its install path.
+const prefixed = entries.map((e) => Object.assign({}, e, { name: './' + INSTALL_PATH + e.name.slice(1) }));
 
-// /Applications must exist as an owned directory for the recursive copy to land.
-const dataTar = buildTar(
-  [{ name: 'Applications/', size: 0, mode: 0o755, isDir: true }].concat(prefixed)
+// Debian requires every parent directory to appear as its own entry, in order.
+// dpkg/Sileo extract sequentially and fail on a file whose parent was never
+// declared, which is what "Bad Deb" reports before it even reads control.
+const dirs = [
+  { name: './', size: 0, mode: 0o755, isDir: true },
+  { name: './Applications/', size: 0, mode: 0o755, isDir: true },
+  { name: './' + INSTALL_PATH + '/', size: 0, mode: 0o755, isDir: true }
+];
+
+// walk() already emits the bundle's own subdirectories, so drop duplicates.
+const seen = new Set(dirs.map((d) => d.name));
+const body = prefixed.filter((e) => {
+  if (!seen.has(e.name)) { seen.add(e.name); return true; }
+  return false;
+});
+
+const dataTar = buildTar(dirs.concat(body));
+
+const installedSize = Math.ceil(
+  entries.reduce((sum, e) => sum + (e.isDir ? 0 : e.size), 0) / 1024
 );
 
 const control = [
@@ -124,6 +141,7 @@ const control = [
   'Maintainer: local',
   'Section: Applications',
   'Priority: optional',
+  'Installed-Size: ' + installedSize,
   'Depends: firmware (>= 12.0)',
   'Description: YouTube web wrapper with ad blocking and background playback.',
   ' A WKWebView container for m.youtube.com. Requires a jailbroken device',
@@ -132,13 +150,14 @@ const control = [
 ].join('\n');
 
 const controlEntry = {
-  name: 'control',
+  name: './control',
   size: Buffer.byteLength(control),
   mode: 0o644,
   isDir: false,
   data: Buffer.from(control, 'utf8')
 };
-const controlTar = buildTar([controlEntry]);
+// Same shape dpkg-buildpackage produces: a ./ root entry, then ./control.
+const controlTar = buildTar([{ name: './', size: 0, mode: 0o755, isDir: true }, controlEntry]);
 
 const deb = buildAr([
   arMember('debian-binary', Buffer.from('2.0\n', 'ascii')),
